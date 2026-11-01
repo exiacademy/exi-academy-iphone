@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="sk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d0d11">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="EXI Academy">
+  <meta name="description" content="EXI Academy – offline knižnica školení pre EXIsport.">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./assets/icon-192.png">
+  <link rel="icon" href="./assets/icon-192.png">
+  <link rel="stylesheet" href="./styles.css">
+  <title>EXI Academy</title>
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <header class="topbar">
+      <button class="brand" data-action="home" aria-label="Domov">
+        <span class="brand-mark">EXI</span>
+        <span class="brand-copy"><strong>EXI Academy</strong><small>Vzdelávanie predajcov</small></span>
+      </button>
+      <button class="icon-button" data-action="settings" aria-label="Nastavenia"><span class="gear">⚙</span></button>
+    </header>
+    <main id="main" class="main-content" tabindex="-1"></main>
+    <nav class="bottom-nav" aria-label="Hlavná navigácia">
+      <button class="nav-item active" data-action="home"><span>⌂</span><small>Domov</small></button>
+      <button class="nav-item" data-action="trainings"><span>▤</span><small>Školenia</small></button>
+      <button class="nav-item" data-action="import"><span>＋</span><small>Import</small></button>
+      <button class="nav-item" data-action="tools"><span>⌘</span><small>Nástroje</small></button>
+    </nav>
+  </div>
+  <div id="modal-root"></div>
+  <script src="./vendor/jszip.min.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
