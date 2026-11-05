@@ -1,4 +1,4 @@
-const CACHE = 'exi-academy-pwa-v3';
+const CACHE = 'exi-academy-pwa-v4';
 const SHELL = [
   './', './index.html', './styles.css', './app.js', './manifest.webmanifest',
   './vendor/jszip.min.js', './bundled-trainings.json', './assets/icon-192.png', './assets/icon-512.png',

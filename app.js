@@ -60,7 +60,7 @@ function bindEvents(){document.addEventListener('click',e=>{const action=e.targe
 
 // Predinštalovaná knižnica: ZIP školenia sú súčasťou balíka PWA.
 // Pri prvom otvorení sa bezpečne rozbalia do IndexedDB; originálne ZIP súbory sa nemenia.
-const BUNDLED_VERSION='2026-11-01-v1';
+const BUNDLED_VERSION='2026-11-05-v2';
 async function seedBundledTrainings(){
   const marker='exi-bundled-trainings-'+BUNDLED_VERSION;
   if(localStorage.getItem(marker)==='done') return {added:0,skipped:0,failed:[]};

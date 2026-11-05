@@ -1,5 +1,17 @@
 [
   {
+    "file": "lyziarske-doplnky-zima.zip",
+    "id": "lyziarske-okuliare-rukavice-palice",
+    "title": "Lyžiarske doplnky – prilby, okuliare, rukavice a palice",
+    "categoryId": "winter",
+    "subcategoryId": "skiing",
+    "subcategoryName": "Lyžovanie",
+    "version": 21,
+    "indexPath": "index.html",
+    "entryCount": 57,
+    "zipSize": 9736272
+  },
+  {
     "file": "korcule-ladove.zip",
     "id": "exi-korcule-ladove-sporty-hokej-2026",
     "title": "Školenie – Korčule na ľad a hokej",
@@ -129,7 +141,7 @@
     "version": 1,
     "indexPath": "index.html",
     "entryCount": 31,
-    "zipSize": 1581666
+    "zipSize": 166158
   },
   {
     "file": "trezeta.zip",
