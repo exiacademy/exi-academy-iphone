@@ -46,21 +46,105 @@ async function renderSettings(){const all=await dbAll();const total=all.reduce((
 function showInfo(title,msg){modalRoot.innerHTML=`<div class="modal-backdrop"><div class="modal"><div class="modal-head"><h2>${esc(title)}</h2><button class="close" data-close>×</button></div><p class="muted" style="line-height:1.6">${esc(msg)}</p></div></div>`;document.querySelector('[data-close]').onclick=()=>modalRoot.innerHTML='';}
 function toast(msg){const n=document.createElement('div');n.className='notice success';n.textContent=msg;n.style.position='fixed';n.style.left='16px';n.style.right='16px';n.style.bottom='88px';n.style.zIndex='30';document.body.appendChild(n);setTimeout(()=>n.remove(),2600);}
 function resolvePath(base,target){try{const u=new URL(target,`https://exi.invalid/${base}`);return decodeURIComponent(u.pathname.replace(/^\//,''));}catch{return target;}}
-async function openTraining(id){const t=await dbGet(id);if(!t)return toast('Školenie sa nenašlo.');currentTraining=t;localStorage.setItem('exi-last-training',id);const fileMap=new Map(t.files.map(f=>[f.path,f]));const blobUrls=new Map();for(const f of t.files){if(!/\.css$/i.test(f.path))blobUrls.set(f.path,URL.createObjectURL(f.blob));}
-const base=t.entryHtmlRelPath.split('/').slice(0,-1).join('/');const entry=t.files.find(f=>f.path===t.entryHtmlRelPath);if(!entry)return toast('Hlavný HTML súbor chýba.');let html=await entry.blob.text();const mapRef=(raw,from)=>{const clean=raw.trim().replace(/^['"]|['"]$/g,'');if(!clean||/^(data:|blob:|https?:|mailto:|tel:|#|javascript:)/i.test(clean))return raw;const p=resolvePath(from,clean);return blobUrls.get(p)||raw;};
-// Rewrite local resource references so relative assets continue to work from the isolated reader frame.
-html=html.replace(/\b(src|href|poster)=(['"])(.*?)\2/gi,(m,a,q,v)=>`${a}=${q}${mapRef(v,base?base+'/': '')}${q}`);
-// Local CSS files are converted to blob URLs too, with their own relative asset references rewritten.
-for(const f of t.files.filter(f=>/\.css$/i.test(f.path))){let css=await f.blob.text();const cssBase=f.path.split('/').slice(0,-1).join('/');css=css.replace(/url\(([^)]+)\)/gi,(m,v)=>`url(${mapRef(v,cssBase?cssBase+'/':'')})`);blobUrls.set(f.path,URL.createObjectURL(new Blob([css],{type:'text/css'})));}
-// Re-run CSS link mapping now that stylesheet object URLs exist.
-html=html.replace(/\b(src|href|poster)=(['"])(.*?)\2/gi,(m,a,q,v)=>`${a}=${q}${mapRef(v,base?base+'/':'')}${q}`);
-const frameDoc=`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><base target="_blank"><style>body{margin:0}</style></head><body>${html}</body></html>`;
-const reader=document.createElement('div');reader.className='reader';reader.innerHTML=`<div class="reader-head"><button class="close" aria-label="Späť">‹</button><strong>${esc(t.title)}</strong><span class="tag">Offline</span></div><iframe class="reader-frame" sandbox="allow-scripts allow-forms allow-popups allow-downloads" title="${esc(t.title)}"></iframe><div class="reader-note">Obsah školenia · lokálne uložený v zariadení</div>`;document.body.appendChild(reader);reader.querySelector('.close').onclick=()=>{reader.remove();blobUrls.forEach(u=>URL.revokeObjectURL(u));currentTraining=null;};reader.querySelector('iframe').srcdoc=frameDoc;}
+async function openTraining(id){
+  const t=await dbGet(id);
+  if(!t)return toast('Školenie sa nenašlo.');
+  currentTraining=t;
+  localStorage.setItem('exi-last-training',id);
+
+  // iOS Safari: local images are embedded as data: URLs instead of blob: URLs.
+  // This avoids blob-origin restrictions inside the sandboxed srcdoc iframe.
+  const fileMap=new Map(t.files.map(f=>[f.path.replace(/\\/g,'/').replace(/^\.\//,''),f]));
+  const dataUrls=new Map();
+  const toDataUrl=blob=>new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>resolve(reader.result);
+    reader.onerror=()=>reject(reader.error||new Error('Súbor sa nepodarilo načítať.'));
+    reader.readAsDataURL(blob);
+  });
+  const isExternal=value=>/^(data:|blob:|https?:|mailto:|tel:|#|javascript:)/i.test(value.trim());
+  const resolveLocal=(from,value)=>{
+    const clean=value.trim().replace(/^['"]|['"]$/g,'').split('#')[0].split('?')[0];
+    if(!clean||isExternal(clean))return null;
+    try{
+      const base='https://exi.invalid/'+(from?from.replace(/^\//,''):'');
+      return decodeURIComponent(new URL(clean,base).pathname.replace(/^\//,''));
+    }catch{return clean.replace(/^\.\//,'');}
+  };
+  const getDataUrl=async(path)=>{
+    const key=path.replace(/\\/g,'/').replace(/^\.\//,'');
+    if(dataUrls.has(key))return dataUrls.get(key);
+    const file=fileMap.get(key);
+    if(!file)return null;
+    const url=await toDataUrl(file.blob);
+    dataUrls.set(key,url);
+    return url;
+  };
+  const base=t.entryHtmlRelPath.split('/').slice(0,-1).join('/');
+  const entry=fileMap.get(t.entryHtmlRelPath.replace(/\\/g,'/').replace(/^\.\//,''));
+  if(!entry)return toast('Hlavný HTML súbor chýba.');
+  let html=await entry.blob.text();
+
+  // Rewrite normal local resource attributes (including lazy-loaded image attributes).
+  const attrPattern=/\b(src|href|poster|data-src|data-original|data-lazy-src)=(['"])(.*?)\2/gi;
+  const attrs=[...html.matchAll(attrPattern)];
+  for(const match of attrs){
+    const raw=match[3];
+    if(isExternal(raw))continue;
+    const path=resolveLocal(base?base+'/':'',raw);
+    if(!path)continue;
+    const url=await getDataUrl(path);
+    if(url)html=html.replace(match[0],`${match[1]}=${match[2]}${url}${match[2]}`);
+  }
+
+  // Handle srcset separately, preserving descriptors such as "2x" and "800w".
+  const srcsets=[...html.matchAll(/\bsrcset=(['"])(.*?)\1/gi)];
+  for(const match of srcsets){
+    const entries=match[2].split(',').map(x=>x.trim()).filter(Boolean);
+    const rewritten=[];
+    for(const item of entries){
+      const bits=item.split(/\s+/); const raw=bits.shift();
+      if(isExternal(raw)){rewritten.push(item);continue;}
+      const path=resolveLocal(base?base+'/':'',raw); const url=path?await getDataUrl(path):null;
+      rewritten.push((url||raw)+(bits.length?' '+bits.join(' '):''));
+    }
+    html=html.replace(match[0],`srcset=${match[1]}${rewritten.join(', ')}${match[1]}`);
+  }
+
+  // Rewrite local url(...) references in inline styles and style blocks.
+  const rewriteCss=async(css,cssBase)=>{
+    const matches=[...css.matchAll(/url\((['"]?)(.*?)\1\)/gi)];
+    for(const match of matches){
+      const raw=match[2].trim(); if(isExternal(raw))continue;
+      const path=resolveLocal(cssBase,raw); const url=path?await getDataUrl(path):null;
+      if(url)css=css.replace(match[0],`url("${url}")`);
+    }
+    return css;
+  };
+  const styles=[...html.matchAll(/<style\b[^>]*>[\s\S]*?<\/style>/gi)];
+  for(const match of styles){
+    const rewritten=await rewriteCss(match[0],base?base+'/':'');
+    html=html.replace(match[0],rewritten);
+  }
+  const inlineStyles=[...html.matchAll(/\bstyle=(['"])(.*?)\1/gi)];
+  for(const match of inlineStyles){
+    const rewritten=await rewriteCss(match[2],base?base+'/':'');
+    html=html.replace(match[0],`style=${match[1]}${rewritten}${match[1]}`);
+  }
+
+  const frameDoc=`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><base target="_blank"><style>html,body{margin:0;max-width:100%;}img,svg,video{max-width:100%;height:auto;}</style></head><body>${html}</body></html>`;
+  const reader=document.createElement('div');
+  reader.className='reader';
+  reader.innerHTML=`<div class="reader-head"><button class="close" aria-label="Späť">‹</button><strong>${esc(t.title)}</strong><span class="tag">Offline</span></div><iframe class="reader-frame" sandbox="allow-scripts allow-forms allow-popups allow-downloads" title="${esc(t.title)}"></iframe><div class="reader-note">Obsah školenia · lokálne uložený v zariadení</div>`;
+  document.body.appendChild(reader);
+  reader.querySelector('.close').onclick=()=>{reader.remove();currentTraining=null;};
+  reader.querySelector('iframe').srcdoc=frameDoc;
+}
 function bindEvents(){document.addEventListener('click',e=>{const action=e.target.closest('[data-action]')?.dataset.action;if(action){if(action==='settings'){currentView='settings';renderSettings();document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));}else if(action==='drive'){window.open('https://drive.google.com/drive/folders/1U4iK_ByLveQBPxOR44WlB48WhwWPFU8_?usp=sharing','_blank','noopener');}else if(action==='authoring'){showInfo('Tvorba a zdieľanie školení','Školenie priprav ako ZIP archív v UTF-8. V koreňovom priečinku alebo v priečinku školenia maj metadata.json a hlavný index.html. Zachovaj jedinečné id, title, categoryId a version. Pribaľ všetky obrázky, CSS, JavaScript a ďalšie lokálne súbory, na ktoré HTML odkazuje. Nepoužívaj externé knižnice ani cloudové zdroje, ak má školenie fungovať offline. Pred zdieľaním otestuj ZIP importom do EXI Academy. Pôvodný ZIP sa pri importe nemení.');}else if(action==='home'||action==='trainings'||action==='import'||action==='tools'){activeCategory=null;nav(action);}return;}const cat=e.target.closest('[data-category]')?.dataset.category;if(cat){activeCategory=cat;currentView='trainings';document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.action==='trainings'));renderTrainings();return;}const open=e.target.closest('[data-open]')?.dataset.open;if(open){openTraining(open);return;}if(e.target.closest('[data-clear-category]')){activeCategory=null;renderTrainings();return;}if(e.target.closest('[data-tools-back]')){toolBack();return;}const tool=e.target.closest('[data-tool]')?.dataset.tool;if(tool){showTool(tool);return;}});}
 
 // Predinštalovaná knižnica: ZIP školenia sú súčasťou balíka PWA.
 // Pri prvom otvorení sa bezpečne rozbalia do IndexedDB; originálne ZIP súbory sa nemenia.
-const BUNDLED_VERSION='2026-11-05-v2';
+const BUNDLED_VERSION='2026-11-01-v1';
 async function seedBundledTrainings(){
   const marker='exi-bundled-trainings-'+BUNDLED_VERSION;
   if(localStorage.getItem(marker)==='done') return {added:0,skipped:0,failed:[]};
