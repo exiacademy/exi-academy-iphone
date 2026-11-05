@@ -166,5 +166,35 @@
     "indexPath": "index.html",
     "entryCount": 33,
     "zipSize": 2207119
+  },
+  {
+    "file": "HEAT_HOLDERS.zip",
+    "id": "heat-holders",
+    "title": "HEAT HOLDERS",
+    "categoryId": "winter",
+    "subcategoryId": "other_winter",
+    "subcategoryName": "Iné – zima",
+    "version": 1,
+    "indexPath": "index.html"
+  },
+  {
+    "file": "lyze_2026.zip",
+    "id": "exi-lyze-zaklady-2026-v1",
+    "title": "Lyže – základy pre predajcu",
+    "categoryId": "winter",
+    "subcategoryId": "skiing",
+    "subcategoryName": "Lyžovanie",
+    "version": 6,
+    "indexPath": "index.html"
+  },
+  {
+    "file": "Lyziarky_2026.zip",
+    "id": "exi-lyziarky-2026-v1",
+    "title": "Lyžiarky",
+    "categoryId": "winter",
+    "subcategoryId": "skiing",
+    "subcategoryName": "Lyžovanie",
+    "version": 1,
+    "indexPath": "index.html"
   }
 ]
